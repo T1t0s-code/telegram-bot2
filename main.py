@@ -369,7 +369,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not users:
         await update.message.reply_text("Whitelist is empty. Add users with /approve first.")
         return
+async def reset_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
 
+    meta_set_int("current_post_id", 0)
+
+    global current_post_id
+    current_post_id = 0
+
+    await update.message.reply_text("✅ Post ID counter reset. Next broadcast will be Post #1.")
+
+    
     # New post each broadcast
     current_post_id = start_new_post()
     recipients_set(current_post_id, users)
