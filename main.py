@@ -159,7 +159,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 caption="Tap 📩 Send or use /send to get the text.",
                 reply_markup=inline_send_keyboard(),
             )    
-            )
             sent_to.append(uid)
         except Exception:
             failed_to.append(uid)
