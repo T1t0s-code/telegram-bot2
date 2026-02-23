@@ -224,6 +224,53 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=f"✅ Sent text to approved user {uid}"
     )
 
+async def addme(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    uid = user.id
+    name = user.full_name
+    username = f"@{user.username}" if user.username else "(no username)"
+
+    # Tell the user their request was sent
+    await update.message.reply_text("Request sent to admin. Wait for approval.")
+
+    # Alert admin with info + instructions
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=(
+            "📥 Approval request\n"
+            f"ID: {uid}\n"
+            f"Name: {name}\n"
+            f"Username: {username}\n\n"
+            "Approve with:\n"
+            f"/approve {uid}\n"
+            "OR reply to one of their messages with /approve_reply"
+        )
+    )
+
+
+async def approve_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Admin-only
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    # Must be used as a reply to a user's message
+    if not update.message.reply_to_message or not update.message.reply_to_message.from_user:
+        await update.message.reply_text("Use this by replying to a user's message: reply then type /approve_reply")
+        return
+
+    target = update.message.reply_to_message.from_user
+    whitelist_add(target.id)
+
+    username = f"@{target.username}" if target.username else "(no username)"
+    await update.message.reply_text(f"✅ Approved {target.full_name} {username} ({target.id})")
+
+    # Optional: notify the user
+    try:
+        await context.bot.send_message(chat_id=target.id, text="✅ You have been approved.")
+    except Exception:
+        pass
+
+
 def main():
     db_init()
 
@@ -236,6 +283,8 @@ def main():
     app.add_handler(CommandHandler("remove", remove_cmd))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(CallbackQueryHandler(button))
+    app.add_handler(CommandHandler("addme", addme))
+    app.add_handler(CommandHandler("approve_reply", approve_reply))
 
     app.run_polling()
 
