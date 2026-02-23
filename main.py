@@ -63,21 +63,26 @@ def whitelist_has(user_id: int) -> bool:
     row = cur.fetchone()
     con.close()
     return row is not None
+    
+def inline_send_keyboard():
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("📩 Send", callback_data="GET_TEXT")]]
+    )
 
+def reply_send_keyboard():
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton("/send")]],
+        resize_keyboard=True
+    )
 
 pending_text: Optional[str] = None
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-
-    if whitelist_has(uid):
-        keyboard = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("📩 Get Text", callback_data="GET_TEXT")]]
-        )
-        await update.message.reply_text("Approved.", reply_markup=keyboard)
-    else:
-        await update.message.reply_text("Not approved.")
+    await update.message.reply_text(
+        "Press 📩 Send (or /send) to receive the latest text (approved users only).",
+        reply_markup=inline_send_keyboard(),
+    )
 
 
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -110,26 +115,65 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if caption:
         pending_text = caption
 
-    photo = update.message.photo[-1].file_id
+    photo_file_id = update.message.photo[-1].file_id
 
-    for uid in whitelist_all():
-        await context.bot.send_photo(uid, photo)
+    users = whitelist_all()
+    if not users:
+        await update.message.reply_text("Whitelist is empty. Add users with /approve first.")
+        return
 
-    await update.message.reply_text("Photo broadcasted.")
+    sent_to = []
+    failed_to = []
 
+    for uid in sorted(users):
+        try:
+            # Photo with inline button
+            await context.bot.send_photo(
+                chat_id=uid,
+                photo=photo_file_id,
+                caption="Tap 📩 Send or use /send to get the text.",
+                reply_markup=inline_send_keyboard(),
+            )
+            # Optional: show /send as a keyboard button too
+            await context.bot.send_message(
+                chat_id=uid,
+                text="Quick button:",
+                reply_markup=reply_send_keyboard(),
+            )
+            sent_to.append(uid)
+        except Exception:
+            failed_to.append(uid)
+
+    msg = f"📸 Broadcast complete.\n✅ Sent to: {sent_to if sent_to else 'none'}"
+    if failed_to:
+        msg += f"\n⚠️ Failed: {failed_to} (they may not have started the bot or blocked it)"
+    if caption:
+        msg += "\n📝 Text updated from photo caption."
+    else:
+        msg += "\n📝 No caption. Send a normal text message now to set the text."
+
+    await update.message.reply_text(msg)
 
 async def send_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
 
     if not whitelist_has(uid):
+        await update.message.reply_text("❌ You are not approved.")
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"🚨 Non-whitelisted user tried /send: {uid}"
+        )
         return
 
     if not pending_text:
-        await update.message.reply_text("No text saved.")
+        await update.message.reply_text("No text saved yet.")
         return
 
     await update.message.reply_text(pending_text)
-    await context.bot.send_message(ADMIN_ID, f"Sent text to {uid}")
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=f"✅ Sent text to approved user {uid} via /send"
+    )
 
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
