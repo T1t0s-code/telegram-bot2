@@ -30,7 +30,6 @@ ADMIN_ID = int(ADMIN_ID_RAW)
 
 DB_PATH = "bot.db"
 
-
 def db_init():
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
@@ -38,34 +37,14 @@ def db_init():
     con.commit()
     con.close()
 
-
 def whitelist_add(user_id: int):
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
-    cur.execute("INSERT OR IGNORE INTO whitelist VALUES (?)", (user_id,))
+    cur.execute("INSERT OR IGNORE INTO whitelist (user_id) VALUES (?)", (user_id,))
     con.commit()
     con.close()
 
-
-def whitelist_all() -> Set[int]:
-    con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute("SELECT user_id FROM whitelist")
-    rows = cur.fetchall()
-    con.close()
-    return {r[0] for r in rows}
-
-
-def whitelist_has(user_id: int) -> bool:
-    con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute("SELECT 1 FROM whitelist WHERE user_id=?", (user_id,))
-    row = cur.fetchone()
-    con.close()
-    return row is not None
-
-    
-    def whitelist_remove(user_id: int) -> bool:
+def whitelist_remove(user_id: int) -> bool:
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
     cur.execute("DELETE FROM whitelist WHERE user_id = ?", (user_id,))
@@ -73,6 +52,23 @@ def whitelist_has(user_id: int) -> bool:
     con.commit()
     con.close()
     return changed
+
+def whitelist_all() -> Set[int]:
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute("SELECT user_id FROM whitelist ORDER BY user_id ASC")
+    rows = cur.fetchall()
+    con.close()
+    return {int(r[0]) for r in rows}
+
+def whitelist_has(user_id: int) -> bool:
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute("SELECT 1 FROM whitelist WHERE user_id = ? LIMIT 1", (user_id,))
+    row = cur.fetchone()
+    con.close()
+    return row is not None
+
 
 async def remove_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
