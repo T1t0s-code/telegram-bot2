@@ -132,13 +132,28 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     uid = query.from_user.id
 
+    # NOT WHITELISTED
     if not whitelist_has(uid):
+        await query.answer("❌ You are not approved.", show_alert=True)
+
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"🚨 Non-whitelisted user tried bot: {uid}"
+        )
         return
 
-    if pending_text:
-        await query.message.reply_text(pending_text)
-        await context.bot.send_message(ADMIN_ID, f"Sent text to {uid}")
+    # NO TEXT SAVED
+    if not pending_text:
+        await query.answer("No text saved yet.", show_alert=True)
+        return
 
+    # APPROVED USER
+    await query.message.reply_text(pending_text)
+
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=f"✅ Sent text to approved user {uid}"
+    )
 
 def main():
     db_init()
