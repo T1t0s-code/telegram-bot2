@@ -363,7 +363,16 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if caption:
         pending_text = caption
 
+   photo_file_id = None
+
+if update.message.photo:
     photo_file_id = update.message.photo[-1].file_id
+elif update.message.document and update.message.document.mime_type and update.message.document.mime_type.startswith("image/"):
+    photo_file_id = update.message.document.file_id
+
+if not photo_file_id:
+    await update.message.reply_text("Send a photo or an image file.")
+    return
 
     users = whitelist_all()
     if not users:
@@ -487,7 +496,7 @@ def main():
     app.add_handler(CommandHandler("addme", addme))
     app.add_handler(CommandHandler("approve_reply", approve_reply))
 
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, admin_text))
 
     app.add_handler(CallbackQueryHandler(button))
