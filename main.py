@@ -63,7 +63,36 @@ def whitelist_has(user_id: int) -> bool:
     row = cur.fetchone()
     con.close()
     return row is not None
+
     
+    def whitelist_remove(user_id: int) -> bool:
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute("DELETE FROM whitelist WHERE user_id = ?", (user_id,))
+    changed = cur.rowcount > 0
+    con.commit()
+    con.close()
+    return changed
+
+async def remove_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not context.args or not context.args[0].isdigit():
+        await update.message.reply_text("Usage: /remove USER_ID")
+        return
+
+    user_id = int(context.args[0])
+    removed = whitelist_remove(user_id)
+
+    if removed:
+        await update.message.reply_text(f"✅ Removed {user_id} from whitelist.")
+    else:
+        await update.message.reply_text(f"⚠️ {user_id} was not in the whitelist.")
+
+
+
+
 def inline_send_keyboard():
     return InlineKeyboardMarkup(
         [[InlineKeyboardButton("📩 Send", callback_data="GET_TEXT")]]
@@ -214,6 +243,7 @@ def main():
     app.add_handler(CommandHandler("approve", approve))
     app.add_handler(CommandHandler("list", list_users))
     app.add_handler(CommandHandler("send", send_text))
+    app.add_handler(CommandHandler("remove", remove_cmd))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(CallbackQueryHandler(button))
 
