@@ -153,12 +153,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for uid in sorted(users):
         try:
             # Photo with inline button
-  await context.bot.send_photo(
-    chat_id=uid,
-    photo=photo_file_id,
-    caption="Tap 📩 Send or use /send to get the text.",
-    reply_markup=inline_send_keyboard(),
-)
+            await context.bot.send_photo(
+                chat_id=uid,
+                photo=photo_file_id,
+                caption="Tap 📩 Send or use /send to get the text.",
+                reply_markup=inline_send_keyboard(),
+            )    
+            )
             sent_to.append(uid)
         except Exception:
             failed_to.append(uid)
