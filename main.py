@@ -337,6 +337,36 @@ async def approve_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         pass
 
+async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    text = " ".join(context.args).strip()
+    if not text:
+        await update.message.reply_text("Usage: /broadcast your message here")
+        return
+
+    users = whitelist_all()
+    if not users:
+        await update.message.reply_text("Whitelist is empty.")
+        return
+
+    sent_to = []
+    failed_to = []
+
+    for uid in sorted(users):
+        try:
+            await context.bot.send_message(chat_id=uid, text=text)
+            sent_to.append(uid)
+        except Exception:
+            failed_to.append(uid)
+
+    msg = f"📢 Broadcast message sent.\n✅ Sent to: {sent_to if sent_to else 'none'}"
+    if failed_to:
+        msg += f"\n⚠️ Failed: {failed_to} (they may not have started the bot or blocked it)"
+    await update.message.reply_text(msg)
+
+
 
 # -------------------- MAIN --------------------
 def main():
@@ -357,6 +387,7 @@ def main():
 
     app.add_handler(CommandHandler("addme", addme))
     app.add_handler(CommandHandler("approve_reply", approve_reply))
+    app.add_handler(CommandHandler("broadcast", broadcast_cmd))
 
     # Photo OR image document
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, handle_photo))
@@ -364,6 +395,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button))
 
     app.run_polling()
+    
 
 
 if __name__ == "__main__":
