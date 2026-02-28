@@ -54,7 +54,14 @@ def db_init():
 
     con.commit()
     con.close()
-
+    # for user @ next to user id 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY,
+        full_name TEXT,
+        username TEXT
+    )
+""")
 
 def meta_get_int(key: str, default: int = 0) -> int:
     con = sqlite3.connect(DB_PATH)
@@ -122,6 +129,50 @@ def whitelist_has(user_id: int) -> bool:
     row = cur.fetchone()
     con.close()
     return row is not None
+
+
+# ----------- ADD BELOW THIS -----------
+
+def upsert_user(user_id: int, full_name: Optional[str], username: Optional[str]) -> None:
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute(
+        """
+        INSERT INTO users(user_id, full_name, username)
+        VALUES(?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+            full_name=excluded.full_name,
+            username=excluded.username
+        """,
+        (user_id, full_name or "", username or ""),
+    )
+    con.commit()
+    con.close()
+
+
+def get_user_label(user_id: int) -> str:
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute("SELECT full_name, username FROM users WHERE user_id = ? LIMIT 1", (user_id,))
+    row = cur.fetchone()
+    con.close()
+
+    if not row:
+        return f"{user_id} (unknown)"
+
+    full_name, username = row
+    username = username.strip()
+    full_name = full_name.strip()
+
+    if username and not username.startswith("@"):
+        username = "@" + username
+
+    label = f"{user_id}"
+    if full_name:
+        label += f" - {full_name}"
+    if username:
+        label += f" {username}"
+    return label
 
 
 # -------------------- ADMIN COMMANDS --------------------
@@ -213,7 +264,7 @@ async def send_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(pending_text)
-    await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ Sent text to approved user {uid} via /send")
+    await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ Sent text to approved user {get_user_label(uid)} via /send"    )
 
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -222,7 +273,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not whitelist_has(uid):
         await query.answer("❌ You are not approved.", show_alert=True)
-        await context.bot.send_message(chat_id=ADMIN_ID, text=f"🚨 Non-whitelisted user tried bot: {uid}")
+        await context.bot.send_message(chat_id=ADMIN_ID, text=f"🚨 Non-whitelisted user tried /send: {get_user_label(uid)}")
         return
 
     if not pending_text:
@@ -231,7 +282,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.answer()
     await query.message.reply_text(pending_text)
-    await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ Sent text to approved user {uid}")
+    await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ Sent text to approved user {get_user_label(uid)}")
 
 
 # -------------------- BROADCAST --------------------
@@ -388,6 +439,14 @@ def main():
     app.add_handler(CommandHandler("addme", addme))
     app.add_handler(CommandHandler("approve_reply", approve_reply))
     app.add_handler(CommandHandler("broadcast", broadcast_cmd))
+    #for user @ next to id
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY,
+        full_name TEXT,
+        username TEXT
+    )
+""")
 
     # Photo OR image document
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, handle_photo))
