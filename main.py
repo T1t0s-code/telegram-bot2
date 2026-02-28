@@ -194,8 +194,8 @@ def get_user_label(user_id: int) -> str:
 
 # -------------------- ADMIN COMMANDS --------------------
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  if update.effective_user.id not in ADMIN_IDS:
-        return
+ if update.effective_user.id not in ADMIN_IDS:
+    return
 
     if not context.args or not context.args[0].isdigit():
         await update.message.reply_text("Usage: /approve USER_ID")
