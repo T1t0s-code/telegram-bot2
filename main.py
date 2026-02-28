@@ -19,14 +19,12 @@ from telegram.ext import (
 )
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
-ADMIN_ID_RAW = os.environ.get("ADMIN_ID", "").strip()
+ADMIN_IDS_RAW = os.environ.get("ADMIN_IDS", "").strip()
 
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN missing in Railway Variables")
-if not ADMIN_ID_RAW.isdigit():
-    raise RuntimeError("ADMIN_ID missing or invalid")
+if not ADMIN_IDS_RAW:
+    raise RuntimeError("ADMIN_IDS missing in Railway Variables")
 
-ADMIN_ID = int(ADMIN_ID_RAW)
+ADMIN_IDS = {int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip().isdigit()}
 
 DB_PATH = "bot.db"
 
@@ -196,7 +194,7 @@ def get_user_label(user_id: int) -> str:
 
 # -------------------- ADMIN COMMANDS --------------------
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+  if update.effective_user.id not in ADMIN_IDS:
         return
 
     if not context.args or not context.args[0].isdigit():
@@ -420,7 +418,8 @@ async def addme(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Request sent to admin. Wait for approval.")
 
     await context.bot.send_message(
-        chat_id=ADMIN_ID,
+       for admin_id in ADMIN_IDS:
+    await context.bot.send_message(chat_id=admin_id, text="..."),
         text=(
             "📥 Approval request\n"
             f"ID: {uid}\n"
