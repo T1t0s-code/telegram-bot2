@@ -62,14 +62,7 @@ def db_init():
 
     con.commit()
     con.close()
-    # for user @ next to user id 
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY,
-        full_name TEXT,
-        username TEXT
-    )
-""")
+
 
 def meta_get_int(key: str, default: int = 0) -> int:
     con = sqlite3.connect(DB_PATH)
