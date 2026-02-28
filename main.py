@@ -51,6 +51,14 @@ def db_init():
 
     # Ensure counter exists
     cur.execute("INSERT OR IGNORE INTO meta(key, value) VALUES('current_post_id', '0')")
+        # for user @ next to user id 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY,
+        full_name TEXT,
+        username TEXT
+    )
+""")
 
     con.commit()
     con.close()
