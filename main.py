@@ -38,38 +38,44 @@ pending_text: Optional[str] = None
 # -------------------- DB --------------------
 def db_init():
     con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
+    try:
+        cur = con.cursor()
 
-    cur.execute("CREATE TABLE IF NOT EXISTS whitelist (user_id INTEGER PRIMARY KEY)")
+        cur.execute("CREATE TABLE IF NOT EXISTS whitelist (user_id INTEGER PRIMARY KEY)")
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS meta (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        )
-    """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
 
-    # Ensure counter exists
-    cur.execute("INSERT OR IGNORE INTO meta(key, value) VALUES('current_post_id', '0')")
-        # for user @ next to user id 
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY,
-        full_name TEXT,
-        username TEXT
-    )
-""")
+        # Store user labels (name/username) so /list can show them
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                full_name TEXT,
+                username TEXT
+            )
+        """)
 
-    con.commit()
-    con.close()
+        # Ensure counter exists
+        cur.execute("INSERT OR IGNORE INTO meta(key, value) VALUES('current_post_id', '0')")
+
+        con.commit()
+    finally:
+        con.close()
 
 
 def meta_get_int(key: str, default: int = 0) -> int:
     con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute("SELECT value FROM meta WHERE key = ? LIMIT 1", (key,))
-    row = cur.fetchone()
-    con.close()
+    try:
+        cur = con.cursor()
+        cur.execute("SELECT value FROM meta WHERE key = ? LIMIT 1", (key,))
+        row = cur.fetchone()
+    finally:
+        con.close()
+
     if not row:
         return default
     try:
@@ -80,14 +86,16 @@ def meta_get_int(key: str, default: int = 0) -> int:
 
 def meta_set_int(key: str, value: int) -> None:
     con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute(
-        "INSERT INTO meta(key, value) VALUES(?, ?) "
-        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-        (key, str(value)),
-    )
-    con.commit()
-    con.close()
+    try:
+        cur = con.cursor()
+        cur.execute(
+            "INSERT INTO meta(key, value) VALUES(?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, str(value)),
+        )
+        con.commit()
+    finally:
+        con.close()
 
 
 def start_new_post() -> int:
@@ -98,72 +106,82 @@ def start_new_post() -> int:
 
 def whitelist_add(user_id: int):
     con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute("INSERT OR IGNORE INTO whitelist (user_id) VALUES (?)", (user_id,))
-    con.commit()
-    con.close()
+    try:
+        cur = con.cursor()
+        cur.execute("INSERT OR IGNORE INTO whitelist (user_id) VALUES (?)", (user_id,))
+        con.commit()
+    finally:
+        con.close()
 
 
 def whitelist_remove(user_id: int) -> bool:
     con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute("DELETE FROM whitelist WHERE user_id = ?", (user_id,))
-    changed = cur.rowcount > 0
-    con.commit()
-    con.close()
-    return changed
+    try:
+        cur = con.cursor()
+        cur.execute("DELETE FROM whitelist WHERE user_id = ?", (user_id,))
+        changed = cur.rowcount > 0
+        con.commit()
+        return changed
+    finally:
+        con.close()
 
 
 def whitelist_all() -> Set[int]:
     con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute("SELECT user_id FROM whitelist ORDER BY user_id ASC")
-    rows = cur.fetchall()
-    con.close()
-    return {int(r[0]) for r in rows}
+    try:
+        cur = con.cursor()
+        cur.execute("SELECT user_id FROM whitelist ORDER BY user_id ASC")
+        rows = cur.fetchall()
+        return {int(r[0]) for r in rows}
+    finally:
+        con.close()
 
 
 def whitelist_has(user_id: int) -> bool:
     con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute("SELECT 1 FROM whitelist WHERE user_id = ? LIMIT 1", (user_id,))
-    row = cur.fetchone()
-    con.close()
-    return row is not None
+    try:
+        cur = con.cursor()
+        cur.execute("SELECT 1 FROM whitelist WHERE user_id = ? LIMIT 1", (user_id,))
+        row = cur.fetchone()
+        return row is not None
+    finally:
+        con.close()
 
-
-# ----------- ADD BELOW THIS -----------
 
 def upsert_user(user_id: int, full_name: Optional[str], username: Optional[str]) -> None:
     con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute(
-        """
-        INSERT INTO users(user_id, full_name, username)
-        VALUES(?, ?, ?)
-        ON CONFLICT(user_id) DO UPDATE SET
-            full_name=excluded.full_name,
-            username=excluded.username
-        """,
-        (user_id, full_name or "", username or ""),
-    )
-    con.commit()
-    con.close()
+    try:
+        cur = con.cursor()
+        cur.execute(
+            """
+            INSERT INTO users(user_id, full_name, username)
+            VALUES(?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                full_name=excluded.full_name,
+                username=excluded.username
+            """,
+            (user_id, (full_name or "").strip(), (username or "").strip()),
+        )
+        con.commit()
+    finally:
+        con.close()
 
 
 def get_user_label(user_id: int) -> str:
     con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute("SELECT full_name, username FROM users WHERE user_id = ? LIMIT 1", (user_id,))
-    row = cur.fetchone()
-    con.close()
+    try:
+        cur = con.cursor()
+        cur.execute("SELECT full_name, username FROM users WHERE user_id = ? LIMIT 1", (user_id,))
+        row = cur.fetchone()
+    finally:
+        con.close()
 
     if not row:
-        return f"{user_id} (unknown)"
+        return f"{user_id}"
 
     full_name, username = row
-    username = username.strip()
-    full_name = full_name.strip()
+    full_name = (full_name or "").strip()
+    username = (username or "").strip()
 
     if username and not username.startswith("@"):
         username = "@" + username
@@ -181,12 +199,8 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
-    if not context.args:
+    if not context.args or not context.args[0].isdigit():
         await update.message.reply_text("Usage: /approve USER_ID")
-        return
-
-    if not context.args[0].isdigit():
-        await update.message.reply_text("Usage: /approve USER_ID (numeric)")
         return
 
     whitelist_add(int(context.args[0]))
@@ -205,17 +219,22 @@ async def remove_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     removed = whitelist_remove(user_id)
 
     if removed:
-        await update.message.reply_text(f"✅ Removed {user_id} from whitelist.")
+        await update.message.reply_text(f"✅ Removed {get_user_label(user_id)} from whitelist.")
     else:
-        await update.message.reply_text(f"⚠️ {user_id} was not in the whitelist.")
+        await update.message.reply_text(f"⚠️ {get_user_label(user_id)} was not in the whitelist.")
 
 
 async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
-    users = whitelist_all()
-    await update.message.reply_text("\n".join(str(u) for u in sorted(users)) or "Empty")
+    users = sorted(whitelist_all())
+    if not users:
+        await update.message.reply_text("Empty")
+        return
+
+    lines = [get_user_label(uid) for uid in users]
+    await update.message.reply_text("\n".join(lines))
 
 
 async def reset_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -235,6 +254,39 @@ async def post_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Current post id: {current_post_id}")
 
 
+async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    text = " ".join(context.args).strip()
+    if not text:
+        await update.message.reply_text("Usage: /broadcast your message here")
+        return
+
+    users = sorted(whitelist_all())
+    if not users:
+        await update.message.reply_text("Whitelist is empty.")
+        return
+
+    sent_to = []
+    failed_to = []
+
+    for uid in users:
+        try:
+            await context.bot.send_message(chat_id=uid, text=text)
+            sent_to.append(uid)
+        except Exception:
+            failed_to.append(uid)
+
+    sent_labels = [get_user_label(u) for u in sent_to]
+    failed_labels = [get_user_label(u) for u in failed_to]
+
+    msg = f"📢 Broadcast message sent.\n✅ Sent to: {sent_labels if sent_labels else 'none'}"
+    if failed_labels:
+        msg += f"\n⚠️ Failed: {failed_labels}"
+    await update.message.reply_text(msg)
+
+
 # -------------------- UI --------------------
 def inline_send_keyboard():
     return InlineKeyboardMarkup([[InlineKeyboardButton("📩 Send", callback_data="GET_TEXT")]])
@@ -246,6 +298,9 @@ def reply_send_keyboard():
 
 # -------------------- USER COMMANDS --------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    upsert_user(user.id, user.full_name, user.username)
+
     await update.message.reply_text(
         "Press 📩 Send (or /send) to receive the latest text (approved users only).",
         reply_markup=inline_send_keyboard(),
@@ -253,11 +308,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def send_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
+    user = update.effective_user
+    uid = user.id
+    upsert_user(uid, user.full_name, user.username)
 
     if not whitelist_has(uid):
         await update.message.reply_text("❌ You are not approved.")
-        await context.bot.send_message(chat_id=ADMIN_ID, text=f"🚨 Non-whitelisted user tried /send: {uid}")
+        await context.bot.send_message(chat_id=ADMIN_ID, text=f"🚨 Non-whitelisted user tried /send: {get_user_label(uid)}")
         return
 
     if not pending_text:
@@ -265,16 +322,18 @@ async def send_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(pending_text)
-    await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ Sent text to approved user {get_user_label(uid)} via /send"    )
+    await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ Sent text to approved user {get_user_label(uid)} via /send")
 
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    uid = query.from_user.id
+    user = query.from_user
+    uid = user.id
+    upsert_user(uid, user.full_name, user.username)
 
     if not whitelist_has(uid):
         await query.answer("❌ You are not approved.", show_alert=True)
-        await context.bot.send_message(chat_id=ADMIN_ID, text=f"🚨 Non-whitelisted user tried /send: {get_user_label(uid)}")
+        await context.bot.send_message(chat_id=ADMIN_ID, text=f"🚨 Non-whitelisted user tried button: {get_user_label(uid)}")
         return
 
     if not pending_text:
@@ -312,7 +371,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Send a photo or an image file.")
         return
 
-    users = whitelist_all()
+    users = sorted(whitelist_all())
     if not users:
         await update.message.reply_text("Whitelist is empty. Add users with /approve first.")
         return
@@ -324,7 +383,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     caption_text = f"Post #{current_post_id}\nTap 📩 Send or use /send to get the text."
 
-    for uid in sorted(users):
+    for uid in users:
         try:
             await context.bot.send_photo(
                 chat_id=uid,
@@ -336,9 +395,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             failed_to.append(uid)
 
-    msg = f"📸 Broadcast complete (Post #{current_post_id}).\n✅ Sent to: {sent_to if sent_to else 'none'}"
-    if failed_to:
-        msg += f"\n⚠️ Failed: {failed_to} (they may not have started the bot or blocked it)"
+    sent_labels = [get_user_label(u) for u in sent_to]
+    failed_labels = [get_user_label(u) for u in failed_to]
+
+    msg = f"📸 Broadcast complete (Post #{current_post_id}).\n✅ Sent to: {sent_labels if sent_labels else 'none'}"
+    if failed_labels:
+        msg += f"\n⚠️ Failed: {failed_labels} (they may not have started the bot or blocked it)"
     if caption:
         msg += "\n📝 Text updated from photo caption."
     else:
@@ -351,7 +413,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def addme(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     uid = user.id
-    name = user.full_name
+    upsert_user(uid, user.full_name, user.username)
+
     username = f"@{user.username}" if user.username else "(no username)"
 
     await update.message.reply_text("Request sent to admin. Wait for approval.")
@@ -361,7 +424,7 @@ async def addme(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=(
             "📥 Approval request\n"
             f"ID: {uid}\n"
-            f"Name: {name}\n"
+            f"Name: {user.full_name}\n"
             f"Username: {username}\n\n"
             "Approve with:\n"
             f"/approve {uid}\n"
@@ -379,45 +442,15 @@ async def approve_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     target = update.message.reply_to_message.from_user
+    upsert_user(target.id, target.full_name, target.username)
     whitelist_add(target.id)
 
-    username = f"@{target.username}" if target.username else "(no username)"
-    await update.message.reply_text(f"✅ Approved {target.full_name} {username} ({target.id})")
+    await update.message.reply_text(f"✅ Approved {get_user_label(target.id)}")
 
     try:
         await context.bot.send_message(chat_id=target.id, text="✅ You have been approved.")
     except Exception:
         pass
-
-async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    text = " ".join(context.args).strip()
-    if not text:
-        await update.message.reply_text("Usage: /broadcast your message here")
-        return
-
-    users = whitelist_all()
-    if not users:
-        await update.message.reply_text("Whitelist is empty.")
-        return
-
-    sent_to = []
-    failed_to = []
-
-    for uid in sorted(users):
-        try:
-            await context.bot.send_message(chat_id=uid, text=text)
-            sent_to.append(uid)
-        except Exception:
-            failed_to.append(uid)
-
-    msg = f"📢 Broadcast message sent.\n✅ Sent to: {sent_to if sent_to else 'none'}"
-    if failed_to:
-        msg += f"\n⚠️ Failed: {failed_to} (they may not have started the bot or blocked it)"
-    await update.message.reply_text(msg)
-
 
 
 # -------------------- MAIN --------------------
@@ -436,18 +469,10 @@ def main():
     app.add_handler(CommandHandler("list", list_users))
     app.add_handler(CommandHandler("resetposts", reset_posts))
     app.add_handler(CommandHandler("postid", post_id))
+    app.add_handler(CommandHandler("broadcast", broadcast_cmd))
 
     app.add_handler(CommandHandler("addme", addme))
     app.add_handler(CommandHandler("approve_reply", approve_reply))
-    app.add_handler(CommandHandler("broadcast", broadcast_cmd))
-    #for user @ next to id
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY,
-        full_name TEXT,
-        username TEXT
-    )
-""")
 
     # Photo OR image document
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, handle_photo))
@@ -455,7 +480,6 @@ def main():
     app.add_handler(CallbackQueryHandler(button))
 
     app.run_polling()
-    
 
 
 if __name__ == "__main__":
