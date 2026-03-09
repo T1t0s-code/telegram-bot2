@@ -28,7 +28,7 @@ ADMIN_IDS = {int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip().isdig
 if not ADMIN_IDS:
     raise RuntimeError("ADMIN_IDS invalid (must be comma-separated numeric ids)")
 
-DB_PATH = "bot.db"
+DB_PATH = os.environ.get("DB_PATH", "/data/bot.db")
 
 current_post_id: int = 0
 pending_text: Optional[str] = None
@@ -214,11 +214,18 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not context.args or not context.args[0].isdigit():
-        await update.message.reply_text("Usage: /approve USER_ID")
+        await update.message.reply_text("Usage: /approve USER_ID [name]")
         return
 
-    whitelist_add(int(context.args[0]))
-    await update.message.reply_text("User approved.")
+    user_id = int(context.args[0])
+    manual_name = " ".join(context.args[1:]).strip()
+
+    whitelist_add(user_id)
+
+    if manual_name:
+        upsert_user(user_id, manual_name, None)
+
+    await update.message.reply_text(f"✅ Approved {get_user_label(user_id)}")
 
 
 async def remove_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -265,6 +272,15 @@ async def post_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(f"Current post id: {current_post_id}")
+
+
+async def clear_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+
+    global pending_text
+    pending_text = None
+    await update.message.reply_text("✅ Saved text cleared. /send will now return 'No text saved yet.'")
 
 
 async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -460,6 +476,7 @@ def main():
     app.add_handler(CommandHandler("list", list_users))
     app.add_handler(CommandHandler("resetposts", reset_posts))
     app.add_handler(CommandHandler("postid", post_id))
+    app.add_handler(CommandHandler("cleartext", clear_text))
     app.add_handler(CommandHandler("broadcast", broadcast_cmd))
 
     app.add_handler(CommandHandler("addme", addme))
